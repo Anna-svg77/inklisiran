@@ -141,6 +141,21 @@
       document.getElementById("list").innerHTML = data.map(p =>
         `<li>${p.fio} — ${p.ldl} ммоль/л</li>`).join("");
     }
+
+    function save() {
+      const fio = document.getElementById("fio").value;
+      const ldl = document.getElementById("ldl").value;
+      const data = JSON.parse(localStorage.getItem("patients") || "[]");
+      data.push({ fio, ldl });
+      localStorage.setItem("patients", JSON.stringify(data));
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>
+    }
     // загружаем сохранённые пациенты при открытии страницы
     renderSaved();
   </script>
