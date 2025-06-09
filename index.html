@@ -1,202 +1,62 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Оценка пациента для назначения Инклисирана (КР 2025)</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    label, input, select { display: block; margin-top: 10px; }
-    .patient { border: 1px solid #ccc; padding: 10px; margin-top: 10px; }
-    .match { background-color: #e0ffe0; }
-    .no-match { background-color: #ffe0e0; }
-    .remove-btn { margin-top: 5px; }
-  </style>
-</head>
-<body>
+def classify_cvd_risk(
+    has_multiple_cvd_events=False,
+    has_acs=False,
+    has_atherosclerosis=False,
+    has_tia_stroke=False,
+    has_zpa_or_aneurysm=False,
+    has_diabetes=False,
+    diabetes_duration_years=0,
+    has_organ_damage=False,
+    has_severe_familial_dyslipidemia=False,
+    ldl_level=0.0,
+    has_systolic_bp_over_180=False,
+    has_tg_over_4_5=False,
+    age=0,
+    score2_percent=0.0
+):
+    # Экстремальный риск
+    if has_multiple_cvd_events and ldl_level > 1.4:
+        return "Экстремальный риск", "<1,0 ммоль/л"
 
-  <h1>Оценка пациента для назначения Инклисирана (КР 2025)</h1>
+    # Очень высокий риск
+    if any([
+        has_acs,
+        has_atherosclerosis,
+        has_tia_stroke,
+        has_zpa_or_aneurysm,
+        (has_diabetes and (has_organ_damage or diabetes_duration_years >= 20)),
+        has_severe_familial_dyslipidemia,
+        (ldl_level >= 5.0)
+    ]):
+        return "Очень высокий риск", "<1,4 ммоль/л"
 
-  <label>ФИО:</label>
-  <input type="text" id="fio" />
+    # Высокий риск
+    if any([
+        has_diabetes and not has_organ_damage and diabetes_duration_years < 20,
+        has_systolic_bp_over_180,
+        has_tg_over_4_5,
+        (ldl_level >= 4.9),
+        (age < 50 and score2_percent > 7.5),
+        (50 <= age < 70 and score2_percent > 10),
+        (age >= 70 and score2_percent > 15)
+    ]):
+        return "Высокий риск", "<1,8 ммоль/л"
 
-  <label>Город:</label>
-  <input type="text" id="city" />
+    # Умеренный риск
+    if any([
+        (age < 50 and 2.5 <= score2_percent <= 7.5),
+        (50 <= age < 70 and 5 <= score2_percent <= 10),
+        (age >= 70 and 7.5 <= score2_percent <= 15)
+    ]):
+        return "Умеренный риск", "<2,6 ммоль/л"
 
-  <label>ЛПНП (ммоль/л):</label>
-  <input type="number" step="0.1" id="ldl" />
+    # Низкий риск
+    return "Низкий риск", "<3,0 ммоль/л"
 
-  <label>Принимает статин в максимально переносимой дозе:</label>
-  <select id="statinMax">
-    <option value="нет">Нет</option>
-    <option value="да">Да</option>
-  </select>
+# Пример вызова
+risk_category, target_ldl = classify_cvd_risk(
+    has_acs=True,
+    ldl_level=3.2
+)
 
-  <label>Принимает эзетимиб:</label>
-  <select id="ezetimibe">
-    <option value="нет">Нет</option>
-    <option value="да">Да</option>
-  </select>
-
-  <label>ССС заболевание (да/нет):</label>
-  <select id="cccDisease">
-    <option value="нет">Нет</option>
-    <option value="да">Да</option>
-  </select>
-
-  <label>Хроническая болезнь почек (да/нет):</label>
-  <select id="ckd">
-    <option value="нет">Нет</option>
-    <option value="да">Да</option>
-  </select>
-
-  <label>Число инфарктов миокарда за последний год:</label>
-  <input type="number" min="0" max="10" id="miCount" />
-
-  <label>Число инсультов за последний год:</label>
-  <input type="number" min="0" max="10" id="strokeCount" />
-
-  <button onclick="evaluatePatient()">Оценить</button>
-  <button onclick="savePatient()">Сохранить пациента</button>
-
-  <div id="result"></div>
-
-  <h2>Сохранённые пациенты</h2>
-  <div id="savedPatients"></div>
-
-  <script>
-    function getRiskLevel(mi, stroke, cccDisease, ckd) {
-      const eventsCount = mi + stroke;
-
-      if (eventsCount >= 2) return "экстремальный";
-      if (eventsCount === 1) return "очень высокий";
-      if (cccDisease === "да" || ckd === "да") return "очень высокий";
-      return "высокий";
-    }
-
-    function getTargetLDL(risk) {
-      switch(risk) {
-        case "экстремальный": return 1.0;
-        case "очень высокий": return 1.4;
-        case "высокий": return 1.8;
-        default: return 2.6;
-      }
-    }
-
-    function evaluatePatient() {
-      const ldl = parseFloat(document.getElementById("ldl").value);
-      const statinMax = document.getElementById("statinMax").value;
-      const ezetimibe = document.getElementById("ezetimibe").value;
-      const cccDisease = document.getElementById("cccDisease").value;
-      const ckd = document.getElementById("ckd").value;
-      const miCount = parseInt(document.getElementById("miCount").value) || 0;
-      const strokeCount = parseInt(document.getElementById("strokeCount").value) || 0;
-
-      const riskLevel = getRiskLevel(miCount, strokeCount, cccDisease, ckd);
-      const targetLDL = getTargetLDL(riskLevel);
-
-      const matches = (ldl > targetLDL && statinMax === "да" && ezetimibe === "да");
-
-      document.getElementById("result").innerHTML = `
-        <div class="${matches ? 'match' : 'no-match'}">
-          <p>Риск: <strong>${riskLevel}</strong></p>
-          <p>Целевой ЛПНП: <strong>&lt; ${targetLDL} ммоль/л</strong></p>
-          <p>Пациент ${matches ? '<strong>подходит</strong>' : '<strong>не подходит</strong>'} для назначения Инклисирана</p>
-        </div>
-      `;
-    }
-
-    function savePatient() {
-      const fio = document.getElementById("fio").value.trim();
-      const city = document.getElementById("city").value.trim();
-      const ldl = document.getElementById("ldl").value;
-      const statinMax = document.getElementById("statinMax").value;
-      const ezetimibe = document.getElementById("ezetimibe").value;
-      const cccDisease = document.getElementById("cccDisease").value;
-      const ckd = document.getElementById("ckd").value;
-      const miCount = parseInt(document.getElementById("miCount").value) || 0;
-      const strokeCount = parseInt(document.getElementById("strokeCount").value) || 0;
-
-      const riskLevel = getRiskLevel(miCount, strokeCount, cccDisease, ckd);
-      const targetLDL = getTargetLDL(riskLevel);
-
-      const matches = (ldl > targetLDL && statinMax === "да" && ezetimibe === "да");
-
-      if (!fio || !city || !ldl) {
-        alert("Пожалуйста, заполните ФИО, город и ЛПНП.");
-        return;
-      }
-
-      const patient = {
-        fio,
-        city,
-        ldl,
-        statinMax,
-        ezetimibe,
-        cccDisease,
-        ckd,
-        miCount,
-        strokeCount,
-        riskLevel,
-        targetLDL,
-        matches
-      };
-
-      let patients = JSON.parse(localStorage.getItem("patients") || "[]");
-      patients.push(patient);
-      localStorage.setItem("patients", JSON.stringify(patients));
-      renderSaved();
-      clearForm();
-    }
-
-    function renderSaved() {
-      const patients = JSON.parse(localStorage.getItem("patients") || "[]");
-      const container = document.getElementById("savedPatients");
-      container.innerHTML = "";
-      patients.forEach((p, i) => {
-        const div = document.createElement("div");
-        div.className = `patient ${p.matches ? 'match' : 'no-match'}`;
-        div.innerHTML = `
-          <p><strong>ФИО:</strong> ${p.fio}</p>
-          <p><strong>Город:</strong> ${p.city}</p>
-          <p><strong>ЛПНП:</strong> ${p.ldl} ммоль/л</p>
-          <p><strong>Статин в максимальной дозе:</strong> ${p.statinMax}</p>
-          <p><strong>Эзетимиб:</strong> ${p.ezetimibe}</p>
-          <p><strong>ССС заболевание:</strong> ${p.cccDisease}</p>
-          <p><strong>Хроническая болезнь почек:</strong> ${p.ckd}</p>
-          <p><strong>Число ИМ за год:</strong> ${p.miCount}</p>
-          <p><strong>Число инсультов за год:</strong> ${p.strokeCount}</p>
-          <p><strong>Риск:</strong> ${p.riskLevel}</p>
-          <p><strong>Целевой ЛПНП:</strong> &lt; ${p.targetLDL} ммоль/л</p>
-          <p><strong>Рекомендация:</strong> ${p.matches ? 'Пациент подходит для назначения Инклисирана' : 'Пациент не подходит'}</p>
-          <button class="remove-btn" onclick="removePatient(${i})">Удалить</button>
-        `;
-        container.appendChild(div);
-      });
-    }
-
-    function removePatient(index) {
-      let patients = JSON.parse(localStorage.getItem("patients") || "[]");
-      patients.splice(index, 1);
-      localStorage.setItem("patients", JSON.stringify(patients));
-      renderSaved();
-    }
-
-    function clearForm() {
-      document.getElementById("fio").value = "";
-      document.getElementById("city").value = "";
-      document.getElementById("ldl").value = "";
-      document.getElementById("statinMax").value = "нет";
-      document.getElementById("ezetimibe").value = "нет";
-      document.getElementById("cccDisease").value = "нет";
-      document.getElementById("ckd").value = "нет";
-      document.getElementById("miCount").value = "0";
-      document.getElementById("strokeCount").value = "0";
-      document.getElementById("result").innerHTML = "";
-    }
-
-    renderSaved();
-  </script>
-
-</body>
-</html>
+print(f"Категория риска: {risk_category}, Целевой ХС ЛПНП: {target_ldl}")
