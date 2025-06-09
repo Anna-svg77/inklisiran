@@ -2,117 +2,166 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Критерии назначения Инклисирана</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Подбор пациентов для инклисирана</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background-color: #f8f9fa; }
-    label { display: block; margin-top: 10px; }
-    input, select, button { margin-top: 5px; padding: 5px; width: 100%; max-width: 300px; }
-    .result { margin-top: 20px; padding: 15px; border-radius: 5px; }
-    .eligible { background-color: #d4edda; color: #155724; }
-    .not-eligible { background-color: #f8d7da; color: #721c24; }
-    .patient-card { border: 1px solid #ccc; padding: 10px; margin-top: 10px; border-radius: 5px; background: white; }
-    .patient-card button { margin-top: 5px; background-color: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    input, select { margin: 5px 0; padding: 5px; width: 100%; }
+    label { font-weight: bold; margin-top: 10px; display: block; }
+    .patient-list { margin-top: 30px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    .result { margin-top: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>Форма оценки пациента для назначения Инклисирана</h2>
+  <h1>Подбор пациента под инклисиран</h1>
+  <form id="patientForm">
+    <label>ФИО:</label>
+    <input type="text" id="name" required>
+    <label>Город:</label>
+    <input type="text" id="city" required>
+    <label>Дата:</label>
+    <input type="date" id="date" required>
+    <label>ХС-ЛПНП (ммоль/л):</label>
+    <input type="number" step="0.1" id="ldl" required>
 
-  <label>ФИО пациента: <input id="fio" type="text"></label>
-  <label>Город: <input id="city" type="text"></label>
-  <label>Дата: <input id="date" type="date"></label>
+    <label>Принимает статин:</label>
+    <select id="statin">
+      <option value="нет">Нет</option>
+      <option value="аторвастатин">Аторвастатин</option>
+      <option value="розувастатин">Розувастатин</option>
+      <option value="симвастатин">Симвастатин</option>
+    </select>
 
-  <label>ЛПНП (ммоль/л): <input id="ldl" type="number" step="0.1"></label>
+    <label>Доза статина (мг):</label>
+    <input type="number" id="statinDose" value="0">
 
-  <label>Применяет максимальную дозу статинов:</label>
-  <select id="statin">
-    <option value="atorvastatin">Аторвастатин ≥ 40 мг</option>
-    <option value="rosuvastatin">Розувастатин ≥ 20 мг</option>
-    <option value="simvastatin">Симвастатин ≥ 40 мг</option>
-    <option value="no">Нет</option>
-  </select>
+    <label>Принимает эзетимиб:</label>
+    <select id="ezetimibe">
+      <option value="нет">Нет</option>
+      <option value="да">Да</option>
+    </select>
 
-  <label>Принимает эзетемиб:</label>
-  <select id="ezetimibe">
-    <option value="yes">Да</option>
-    <option value="no">Нет</option>
-  </select>
+    <label>Факторы риска (отметьте все, что применимо):</label>
+    <div>
+      <input type="checkbox" name="risk" value="ИМ"> ИМ<br>
+      <input type="checkbox" name="risk" value="ИБС"> ИБС/стент/шунт<br>
+      <input type="checkbox" name="risk" value="инсульт"> Инсульт/ОНИМК<br>
+      <input type="checkbox" name="risk" value="СД"> СД + поражение органов-мишеней<br>
+      <input type="checkbox" name="risk" value="ПА"> Периферический атеросклероз<br>
+      <input type="checkbox" name="risk" value="СГХ"> Семейная гиперхолестеринемия<br>
+      <input type="checkbox" name="risk" value="ХБП"> ХБП 3 стадии и выше<br>
+      <input type="checkbox" name="risk" value="повтор"> Повторные СС-события<br>
+    </div>
 
-  <label>Факт ИБС / ИМ / инсульта / ПА:</label>
-  <select id="cvd">
-    <option value="yes">Да</option>
-    <option value="no">Нет</option>
-  </select>
+    <button type="submit">Оценить и сохранить</button>
+  </form>
 
-  <button onclick="checkEligibility()">Оценить</button>
+  <div class="result" id="result"></div>
 
-  <div id="result"></div>
-  <button onclick="savePatient()">Сохранить пациента</button>
-
-  <h3>Список пациентов</h3>
-  <div id="patients"></div>
+  <div class="patient-list">
+    <h2>Список пациентов</h2>
+    <table id="patientsTable">
+      <thead>
+        <tr>
+          <th>ФИО</th>
+          <th>Город</th>
+          <th>Дата</th>
+          <th>ЛПНП</th>
+          <th>Риск</th>
+          <th>Подходит</th>
+          <th>Удалить</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
   <script>
-    function checkEligibility() {
-      const ldl = parseFloat(document.getElementById('ldl').value);
-      const statin = document.getElementById('statin').value;
-      const ezetimibe = document.getElementById('ezetimibe').value;
-      const cvd = document.getElementById('cvd').value;
-      let eligible = false;
+    const form = document.getElementById('patientForm');
+    const resultDiv = document.getElementById('result');
+    const tableBody = document.querySelector('#patientsTable tbody');
 
-      const statinOk = statin !== 'no';
-      const ezOk = ezetimibe === 'yes';
-      const hasCVD = cvd === 'yes';
-
-      if (hasCVD && statinOk && ezOk && ldl >= 1.4) eligible = true;
-      else if (!hasCVD && statinOk && ezOk && ldl >= 2.6) eligible = true;
-
-      const resultDiv = document.getElementById('result');
-      resultDiv.className = 'result ' + (eligible ? 'eligible' : 'not-eligible');
-      resultDiv.innerText = eligible ? 'Пациент подходит под критерии назначения Инклисирана' : 'Пациент НЕ подходит под критерии назначения Инклисирана';
-      return eligible;
+    function getRiskLevel(risks) {
+      if (risks.includes('повтор') || (risks.includes('СД') && risks.includes('ПА'))) return 'Экстремальный';
+      if (risks.length >= 1) return 'Очень высокий';
+      return 'Высокий';
     }
 
-    function savePatient() {
-      const fio = document.getElementById('fio').value;
-      const city = document.getElementById('city').value;
-      const date = document.getElementById('date').value;
-      const ldl = document.getElementById('ldl').value;
-      const statin = document.getElementById('statin').value;
-      const ezetimibe = document.getElementById('ezetimibe').value;
-      const cvd = document.getElementById('cvd').value;
-      const eligible = checkEligibility();
+    function getTargetLDL(risk) {
+      if (risk === 'Экстремальный') return 1.0;
+      if (risk === 'Очень высокий') return 1.4;
+      return 1.8;
+    }
 
-      const patient = { fio, city, date, ldl, statin, ezetimibe, cvd, eligible };
-      let patients = JSON.parse(localStorage.getItem('patients') || '[]');
-      patients.push(patient);
+    function isMaxStatin(statin, dose) {
+      const maxDoses = { 'аторвастатин': 80, 'розувастатин': 40, 'симвастатин': 40 };
+      return maxDoses[statin] && dose >= maxDoses[statin];
+    }
+
+    function evaluatePatient(ldl, risk, statin, statinDose, ezetimibe) {
+      const target = getTargetLDL(risk);
+      const maxStatinOk = isMaxStatin(statin, statinDose);
+      return ldl > target && statin !== 'нет' && maxStatinOk && ezetimibe === 'да';
+    }
+
+    function savePatients(patients) {
       localStorage.setItem('patients', JSON.stringify(patients));
-      renderPatients();
+    }
+
+    function loadPatients() {
+      return JSON.parse(localStorage.getItem('patients') || '[]');
     }
 
     function renderPatients() {
-      const container = document.getElementById('patients');
-      container.innerHTML = '';
-      const patients = JSON.parse(localStorage.getItem('patients') || '[]');
-      patients.forEach((p, i) => {
-        const div = document.createElement('div');
-        div.className = 'patient-card';
-        div.innerHTML = `<strong>${p.fio}</strong> (${p.city}, ${p.date})<br>
-          ЛПНП: ${p.ldl} ммоль/л<br>
-          Статин: ${p.statin}<br>
-          Эзетимиб: ${p.ezetimibe}<br>
-          ССЗ: ${p.cvd}<br>
-          <strong>${p.eligible ? 'Подходит' : 'Не подходит'} под инклисиран</strong><br>
-          <button onclick="deletePatient(${i})">Удалить</button>`;
-        container.appendChild(div);
+      const patients = loadPatients();
+      tableBody.innerHTML = '';
+      patients.forEach((p, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${p.name}</td>
+          <td>${p.city}</td>
+          <td>${p.date}</td>
+          <td>${p.ldl}</td>
+          <td>${p.risk}</td>
+          <td>${p.appropriate ? 'Да' : 'Нет'}</td>
+          <td><button onclick="deletePatient(${index})">Удалить</button></td>
+        `;
+        tableBody.appendChild(row);
       });
     }
 
     function deletePatient(index) {
-      let patients = JSON.parse(localStorage.getItem('patients') || '[]');
+      const patients = loadPatients();
       patients.splice(index, 1);
-      localStorage.setItem('patients', JSON.stringify(patients));
+      savePatients(patients);
       renderPatients();
     }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('name').value.trim();
+      const city = document.getElementById('city').value.trim();
+      const date = document.getElementById('date').value;
+      const ldl = parseFloat(document.getElementById('ldl').value);
+      const statin = document.getElementById('statin').value;
+      const statinDose = parseInt(document.getElementById('statinDose').value);
+      const ezetimibe = document.getElementById('ezetimibe').value;
+      const risks = [...document.querySelectorAll('input[name="risk"]:checked')].map(cb => cb.value);
+
+      const riskLevel = getRiskLevel(risks);
+      const suitable = evaluatePatient(ldl, riskLevel, statin, statinDose, ezetimibe);
+
+      resultDiv.innerText = `Группа риска: ${riskLevel}, целевой ЛПНП < ${getTargetLDL(riskLevel)} ммоль/л.\nИнклисиран ${suitable ? 'показан' : 'не показан'}`;
+
+      const patients = loadPatients();
+      patients.push({ name, city, date, ldl, risk: riskLevel, appropriate: suitable });
+      savePatients(patients);
+      renderPatients();
+      form.reset();
+    });
 
     renderPatients();
   </script>
