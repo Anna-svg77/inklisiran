@@ -2,11 +2,11 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Критерии назначения Инклисирана</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Оценка пациента для назначения Инклисирана (КР 2025)</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
-    label, select, input, textarea { display: block; margin-top: 10px; }
+    label, input, select { display: block; margin-top: 10px; }
     .patient { border: 1px solid #ccc; padding: 10px; margin-top: 10px; }
     .match { background-color: #e0ffe0; }
     .no-match { background-color: #ffe0e0; }
@@ -14,7 +14,8 @@
   </style>
 </head>
 <body>
-  <h1>Оценка пациента для назначения Инклисирана</h1>
+
+  <h1>Оценка пациента для назначения Инклисирана (КР 2025)</h1>
 
   <label>ФИО:</label>
   <input type="text" id="fio" />
@@ -37,13 +38,23 @@
     <option value="да">Да</option>
   </select>
 
-  <label>Факторы риска (выберите все подходящие):</label>
-  <label><input type="checkbox" class="risk" value="ССС заболевание" /> ССС заболевание</label>
-  <label><input type="checkbox" class="risk" value="ИМ" /> Инфаркт миокарда</label>
-  <label><input type="checkbox" class="risk" value="Инсульт" /> Инсульт</label>
-  <label><input type="checkbox" class="risk" value="СД" /> Сахарный диабет</label>
-  <label><input type="checkbox" class="risk" value="ХБП" /> Хроническая болезнь почек</label>
-  <label><input type="checkbox" class="risk" value="Гипертония" /> Артериальная гипертензия</label>
+  <label>ССС заболевание (да/нет):</label>
+  <select id="cccDisease">
+    <option value="нет">Нет</option>
+    <option value="да">Да</option>
+  </select>
+
+  <label>Хроническая болезнь почек (да/нет):</label>
+  <select id="ckd">
+    <option value="нет">Нет</option>
+    <option value="да">Да</option>
+  </select>
+
+  <label>Число инфарктов миокарда за последний год:</label>
+  <input type="number" min="0" max="10" id="miCount" />
+
+  <label>Число инсультов за последний год:</label>
+  <input type="number" min="0" max="10" id="strokeCount" />
 
   <button onclick="evaluatePatient()">Оценить</button>
   <button onclick="savePatient()">Сохранить пациента</button>
@@ -54,15 +65,17 @@
   <div id="savedPatients"></div>
 
   <script>
-    function getRiskLevel(factors) {
-      if (factors.includes("ИМ") || factors.includes("Инсульт")) return "экстремальный";
-      if (factors.includes("ССС заболевание") || factors.includes("СД") || factors.includes("ХБП")) return "очень высокий";
-      if (factors.includes("Гипертония")) return "высокий";
-      return "не определён";
+    function getRiskLevel(mi, stroke, cccDisease, ckd) {
+      const eventsCount = mi + stroke;
+
+      if (eventsCount >= 2) return "экстремальный";
+      if (eventsCount === 1) return "очень высокий";
+      if (cccDisease === "да" || ckd === "да") return "очень высокий";
+      return "высокий";
     }
 
     function getTargetLDL(risk) {
-      switch (risk) {
+      switch(risk) {
         case "экстремальный": return 1.0;
         case "очень высокий": return 1.4;
         case "высокий": return 1.8;
@@ -74,36 +87,66 @@
       const ldl = parseFloat(document.getElementById("ldl").value);
       const statinMax = document.getElementById("statinMax").value;
       const ezetimibe = document.getElementById("ezetimibe").value;
-      const risks = Array.from(document.querySelectorAll(".risk:checked")).map(cb => cb.value);
-      const riskLevel = getRiskLevel(risks);
+      const cccDisease = document.getElementById("cccDisease").value;
+      const ckd = document.getElementById("ckd").value;
+      const miCount = parseInt(document.getElementById("miCount").value) || 0;
+      const strokeCount = parseInt(document.getElementById("strokeCount").value) || 0;
+
+      const riskLevel = getRiskLevel(miCount, strokeCount, cccDisease, ckd);
       const targetLDL = getTargetLDL(riskLevel);
+
       const matches = (ldl > targetLDL && statinMax === "да" && ezetimibe === "да");
 
       document.getElementById("result").innerHTML = `
         <div class="${matches ? 'match' : 'no-match'}">
           <p>Риск: <strong>${riskLevel}</strong></p>
-          <p>Целевой ЛПНП: <strong>< ${targetLDL} ммоль/л</strong></p>
-          <p>Пациент ${matches ? '<strong>подходит</strong>' : '<strong>не подходит</strong>'} для назначения инклисирана</p>
+          <p>Целевой ЛПНП: <strong>&lt; ${targetLDL} ммоль/л</strong></p>
+          <p>Пациент ${matches ? '<strong>подходит</strong>' : '<strong>не подходит</strong>'} для назначения Инклисирана</p>
         </div>
       `;
     }
 
     function savePatient() {
-      const fio = document.getElementById("fio").value;
-      const city = document.getElementById("city").value;
+      const fio = document.getElementById("fio").value.trim();
+      const city = document.getElementById("city").value.trim();
       const ldl = document.getElementById("ldl").value;
       const statinMax = document.getElementById("statinMax").value;
       const ezetimibe = document.getElementById("ezetimibe").value;
-      const risks = Array.from(document.querySelectorAll(".risk:checked")).map(cb => cb.value);
-      const riskLevel = getRiskLevel(risks);
-      const targetLDL = getTargetLDL(riskLevel);
-      const match = (ldl > targetLDL && statinMax === "да" && ezetimibe === "да");
+      const cccDisease = document.getElementById("cccDisease").value;
+      const ckd = document.getElementById("ckd").value;
+      const miCount = parseInt(document.getElementById("miCount").value) || 0;
+      const strokeCount = parseInt(document.getElementById("strokeCount").value) || 0;
 
-      const patient = { fio, city, ldl, statinMax, ezetimibe, risks, riskLevel, match };
+      const riskLevel = getRiskLevel(miCount, strokeCount, cccDisease, ckd);
+      const targetLDL = getTargetLDL(riskLevel);
+
+      const matches = (ldl > targetLDL && statinMax === "да" && ezetimibe === "да");
+
+      if (!fio || !city || !ldl) {
+        alert("Пожалуйста, заполните ФИО, город и ЛПНП.");
+        return;
+      }
+
+      const patient = {
+        fio,
+        city,
+        ldl,
+        statinMax,
+        ezetimibe,
+        cccDisease,
+        ckd,
+        miCount,
+        strokeCount,
+        riskLevel,
+        targetLDL,
+        matches
+      };
+
       let patients = JSON.parse(localStorage.getItem("patients") || "[]");
       patients.push(patient);
       localStorage.setItem("patients", JSON.stringify(patients));
       renderSaved();
+      clearForm();
     }
 
     function renderSaved() {
@@ -112,16 +155,20 @@
       container.innerHTML = "";
       patients.forEach((p, i) => {
         const div = document.createElement("div");
-        div.className = `patient ${p.match ? 'match' : 'no-match'}`;
+        div.className = `patient ${p.matches ? 'match' : 'no-match'}`;
         div.innerHTML = `
           <p><strong>ФИО:</strong> ${p.fio}</p>
           <p><strong>Город:</strong> ${p.city}</p>
           <p><strong>ЛПНП:</strong> ${p.ldl} ммоль/л</p>
           <p><strong>Статин в максимальной дозе:</strong> ${p.statinMax}</p>
           <p><strong>Эзетимиб:</strong> ${p.ezetimibe}</p>
-          <p><strong>Факторы риска:</strong> ${p.risks.join(", ")}</p>
+          <p><strong>ССС заболевание:</strong> ${p.cccDisease}</p>
+          <p><strong>Хроническая болезнь почек:</strong> ${p.ckd}</p>
+          <p><strong>Число ИМ за год:</strong> ${p.miCount}</p>
+          <p><strong>Число инсультов за год:</strong> ${p.strokeCount}</p>
           <p><strong>Риск:</strong> ${p.riskLevel}</p>
-          <p><strong>Рекомендация:</strong> ${p.match ? 'Пациент подходит' : 'Пациент не подходит'} для назначения инклисирана</p>
+          <p><strong>Целевой ЛПНП:</strong> &lt; ${p.targetLDL} ммоль/л</p>
+          <p><strong>Рекомендация:</strong> ${p.matches ? 'Пациент подходит для назначения Инклисирана' : 'Пациент не подходит'}</p>
           <button class="remove-btn" onclick="removePatient(${i})">Удалить</button>
         `;
         container.appendChild(div);
@@ -135,7 +182,21 @@
       renderSaved();
     }
 
-    window.onload = renderSaved;
+    function clearForm() {
+      document.getElementById("fio").value = "";
+      document.getElementById("city").value = "";
+      document.getElementById("ldl").value = "";
+      document.getElementById("statinMax").value = "нет";
+      document.getElementById("ezetimibe").value = "нет";
+      document.getElementById("cccDisease").value = "нет";
+      document.getElementById("ckd").value = "нет";
+      document.getElementById("miCount").value = "0";
+      document.getElementById("strokeCount").value = "0";
+      document.getElementById("result").innerHTML = "";
+    }
+
+    renderSaved();
   </script>
+
 </body>
 </html>
