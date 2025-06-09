@@ -2,130 +2,32 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Оценка пациента для Инклисирана</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; max-width: 700px; margin: auto; }
-    label, select, input { display: block; margin-top: 10px; width: 100%; }
-    .result { margin-top: 20px; padding: 15px; border-radius: 5px; }
-    .match { background-color: #e0ffe0; border: 1px solid #4CAF50; }
-    .no-match { background-color: #ffe0e0; border: 1px solid #f44336; }
-    table { width: 100%; margin-top: 20px; border-collapse: collapse; }
-    td, th { border: 1px solid #ccc; padding: 5px; text-align: center; }
-    button { margin-top: 15px; padding: 10px; }
-  </style>
+  <title>Оценка пациента</title>
 </head>
 <body>
-  <h1>Оценка пациента для назначения Инклисирана</h1>
-
-  <label>ФИО пациента:</label>
-  <input type="text" id="fio" />
-
-  <label>ЛПНП (ммоль/л):</label>
-  <input type="number" id="ldl" step="0.1" />
-
-  <label>Категория риска:</label>
-  <select id="risk">
-    <option value="низкий">Низкий</option>
-    <option value="умеренный">Умеренный</option>
-    <option value="высокий">Высокий</option>
-    <option value="очень высокий">Очень высокий</option>
-  </select>
-
-  <label>Принимает статин в максимальной дозе:</label>
-  <select id="statin">
-    <option value="нет">Нет</option>
-    <option value="да">Да</option>
-  </select>
-
-  <label>Принимает эзетимиб:</label>
-  <select id="ezetimibe">
-    <option value="нет">Нет</option>
-    <option value="да">Да</option>
-  </select>
-
-  <button onclick="evaluate()">Оценить пациента</button>
-
-  <div id="result" class="result"></div>
-
-  <h2>Сохранённые пациенты</h2>
-  <table id="table">
-    <thead>
-      <tr><th>ФИО</th><th>Риск</th><th>ЛПНП</th><th>Показан?</th></tr>
-    </thead>
-    <tbody id="saved"></tbody>
-  </table>
-
-  <button onclick="clearPatients()">🗑 Очистить список</button>
+  <h1>Пациенты</h1>
+  <input id="fio" placeholder="ФИО"/>
+  <input id="ldl" placeholder="ЛПНП" type="number" step="0.1"/>
+  <button onclick="save()">Сохранить</button>
+  <ul id="list"></ul>
 
   <script>
-    function getTargetLDL(risk) {
-      if (risk === "очень высокий") return 1.4;
-      if (risk === "высокий") return 1.8;
-      return null;
+    function load() {
+      const data = JSON.parse(localStorage.getItem("patients") || "[]");
+      document.getElementById("list").innerHTML = data.map(p =>
+        `<li>${p.fio} — ${p.ldl} ммоль/л</li>`).join("");
     }
 
-    function evaluate() {
-      const fio = document.getElementById("fio").value.trim();
-      const ldl = parseFloat(document.getElementById("ldl").value);
-      const risk = document.getElementById("risk").value;
-      const statin = document.getElementById("statin").value;
-      const ezetimibe = document.getElementById("ezetimibe").value;
-
-      if (!fio || isNaN(ldl)) {
-        alert("Пожалуйста, введите ФИО и уровень ЛПНП.");
-        return;
-      }
-
-      const targetLDL = getTargetLDL(risk);
-      let eligible = false;
-      let explanation = "";
-
-      if (targetLDL === null) {
-        explanation = "Пациент с низким или умеренным риском — инклисиран не показан.";
-      } else if (statin === "да" && ezetimibe === "да" && ldl > targetLDL) {
-        eligible = true;
-        explanation = "Пациент соответствует критериям: высокий риск, оптимальная терапия, ЛПНП выше целевого.";
-      } else {
-        explanation = "Пациент не соответствует критериям: недостаёт риск/терапия/ЛПНП.";
-      }
-
-      document.getElementById("result").className = `result ${eligible ? 'match' : 'no-match'}`;
-      document.getElementById("result").innerHTML = `
-        <h3>${fio}</h3>
-        <p>Категория риска: <strong>${risk}</strong></p>
-        <p>ЛПНП: <strong>${ldl} ммоль/л</strong> (Цель: ${targetLDL ?? "не указана"})</p>
-        <p>${explanation}</p>
-        <p><strong>${eligible ? "✅ Инклисиран показан" : "❌ Инклисиран не показан"}</strong></p>
-      `;
-
-      savePatient({ fio, risk, ldl, eligible });
+    function save() {
+      const fio = document.getElementById("fio").value;
+      const ldl = document.getElementById("ldl").value;
+      const data = JSON.parse(localStorage.getItem("patients") || "[]");
+      data.push({ fio, ldl });
+      localStorage.setItem("patients", JSON.stringify(data));
+      load();
     }
 
-    function savePatient(patient) {
-      let list = JSON.parse(localStorage.getItem("patients") || "[]");
-      list.push(patient);
-      localStorage.setItem("patients", JSON.stringify(list));
-      renderSaved();
-    }
-
-    function renderSaved() {
-      const list = JSON.parse(localStorage.getItem("patients") || "[]");
-      const tbody = document.getElementById("saved");
-      tbody.innerHTML = list.map(p =>
-        `<tr><td>${p.fio}</td><td>${p.risk}</td><td>${p.ldl}</td><td>${p.eligible ? "✅" : "❌"}</td></tr>`
-      ).join("");
-    }
-
-    function clearPatients() {
-      if (confirm("Удалить всех пациентов из списка?")) {
-        localStorage.removeItem("patients");
-        renderSaved();
-      }
-    }
-
-    // загружаем сохранённые пациенты при открытии страницы
-    renderSaved();
+    load();
   </script>
 </body>
 </html>
