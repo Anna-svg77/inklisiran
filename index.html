@@ -1,75 +1,93 @@
-# routing_tool.py
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Оценка пациента для Инклисирана</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    label, select, input { display: block; margin-top: 10px; width: 100%; }
+    .result { margin-top: 20px; padding: 15px; border-radius: 5px; }
+    .match { background-color: #e0ffe0; border: 1px solid #4CAF50; }
+    .no-match { background-color: #ffe0e0; border: 1px solid #f44336; }
+  </style>
+</head>
+<body>
+  <h1>Оценка пациента для назначения Инклисирана</h1>
 
-"""
-Инструмент маршрутизации пациента на основе ФКР 2023 по сердечно-сосудистому риску.
-"""
+  <label>ФИО пациента:</label>
+  <input type="text" id="fio" />
 
-from typing import Optional
+  <label>ЛПНП (ммоль/л):</label>
+  <input type="number" id="ldl" step="0.1" />
 
+  <label>Принимает статин в максимально переносимой дозе:</label>
+  <select id="statin">
+    <option value="нет">Нет</option>
+    <option value="да">Да</option>
+  </select>
 
-class RiskLevel:
-    EXTREME = "Экстремальный"
-    VERY_HIGH = "Очень высокий"
-    HIGH = "Высокий"
-    MODERATE = "Умеренный"
-    LOW = "Низкий"
-    UNKNOWN = "Недостаточно данных"
+  <label>Принимает эзетимиб:</label>
+  <select id="ezetimibe">
+    <option value="нет">Нет</option>
+    <option value="да">Да</option>
+  </select>
 
+  <label>Факторы риска (выберите все, что есть):</label>
+  <label><input type="checkbox" class="risk" value="инфаркт"> Инфаркт миокарда</label>
+  <label><input type="checkbox" class="risk" value="инсульт"> Инсульт</label>
+  <label><input type="checkbox" class="risk" value="периферический атеросклероз"> Периферический атеросклероз</label>
+  <label><input type="checkbox" class="risk" value="сд"> Сахарный диабет</label>
+  <label><input type="checkbox" class="risk" value="хбп"> Хроническая болезнь почек</label>
+  <label><input type="checkbox" class="risk" value="гипертония"> Артериальная гипертензия</label>
 
-ROUTES = {
-    RiskLevel.EXTREME: "Ведение в специализированном центре / федеральном центре / стационаре. Срочная маршрутизация.",
-    RiskLevel.VERY_HIGH: "Направление к кардиологу / эндокринологу. Возможен дневной стационар или ЦАОП.",
-    RiskLevel.HIGH: "Консультация профильного специалиста (амбулаторно). Ведение в КДЦ / межрайонном центре.",
-    RiskLevel.MODERATE: "Ведение врачом общей практики / терапевтом. Наблюдение на уровне ПМСП.",
-    RiskLevel.LOW: "Профилактическое наблюдение. Самоконтроль, контроль в ОВП / диспансеризация.",
-    RiskLevel.UNKNOWN: "Требуется дополнительное обследование и повторная стратификация риска."
-}
+  <button onclick="evaluate()">Оценить пациента</button>
 
+  <div id="result" class="result"></div>
 
-def classify_risk_and_route(
-    has_multiple_events_in_2_years: bool = False,
-    has_established_cvd: bool = False,
-    has_severe_ckd: bool = False,
-    has_diabetes_with_damage: bool = False,
-    has_target_organ_damage: bool = False,
-    has_early_onset_fh: bool = False,
-    score2_percent: Optional[float] = None,
-    age: Optional[int] = None
-) -> dict:
-    """
-    Классификация сердечно-сосудистого риска и определение маршрута ведения пациента.
-    """
+  <script>
+    function getRiskLevel(factors) {
+      const hasExtreme = factors.includes('инфаркт') || factors.includes('инсульт') || factors.includes('периферический атеросклероз');
+      const hasVeryHigh = factors.includes('сд') || factors.includes('хбп');
+      const hasHigh = factors.includes('гипертония');
 
-    # Определение риска
-    if has_multiple_events_in_2_years:
-        risk = RiskLevel.EXTREME
-    elif (
-        has_established_cvd
-        or has_severe_ckd
-        or has_diabetes_with_damage
-        or has_target_organ_damage
-        or has_early_onset_fh
-    ):
-        risk = RiskLevel.VERY_HIGH
-    elif score2_percent is not None:
-        if score2_percent >= 10:
-            risk = RiskLevel.VERY_HIGH
-        elif score2_percent >= 5:
-            risk = RiskLevel.HIGH
-        elif age is not None:
-            if (age < 50 and score2_percent < 2.5) or \
-               (50 <= age < 69 and score2_percent < 5) or \
-               (age >= 70 and score2_percent < 7.5):
-                risk = RiskLevel.LOW
-            else:
-                risk = RiskLevel.MODERATE
-        else:
-            risk = RiskLevel.MODERATE
-    else:
-        risk = RiskLevel.UNKNOWN
-
-    route = ROUTES[risk]
-    return {
-        "Категория риска": risk,
-        "Рекомендованный маршрут": route
+      if (hasExtreme && (hasVeryHigh || factors.length > 1)) return 'экстремальный';
+      if (hasExtreme) return 'очень высокий';
+      if (hasVeryHigh) return 'высокий';
+      if (hasHigh) return 'умеренный';
+      return 'низкий';
     }
+
+    function getTargetLDL(risk) {
+      switch (risk) {
+        case 'экстремальный': return 1.0;
+        case 'очень высокий': return 1.4;
+        case 'высокий': return 1.8;
+        case 'умеренный': return 2.6;
+        default: return 3.0;
+      }
+    }
+
+    function evaluate() {
+      const fio = document.getElementById("fio").value;
+      const ldl = parseFloat(document.getElementById("ldl").value);
+      const statin = document.getElementById("statin").value;
+      const ezetimibe = document.getElementById("ezetimibe").value;
+      const risks = Array.from(document.querySelectorAll(".risk:checked")).map(r => r.value);
+
+      const riskLevel = getRiskLevel(risks);
+      const target = getTargetLDL(riskLevel);
+      const eligible = (ldl > target && statin === "да" && ezetimibe === "да");
+
+      document.getElementById("result").className = `result ${eligible ? 'match' : 'no-match'}`;
+      document.getElementById("result").innerHTML = `
+        <h3>${fio}</h3>
+        <p>Уровень риска: <strong>${riskLevel}</strong></p>
+        <p>Целевой ЛПНП: <strong>< ${target} ммоль/л</strong></p>
+        <p>Фактический ЛПНП: <strong>${ldl} ммоль/л</strong></p>
+        <p><strong>${eligible ? 'Пациент подходит' : 'Пациент не подходит'}</strong> для назначения инклисирана</p>
+      `;
+    }
+  </script>
+</body>
+</html>
