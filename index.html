@@ -1,62 +1,75 @@
-def classify_cvd_risk(
-    has_multiple_cvd_events=False,
-    has_acs=False,
-    has_atherosclerosis=False,
-    has_tia_stroke=False,
-    has_zpa_or_aneurysm=False,
-    has_diabetes=False,
-    diabetes_duration_years=0,
-    has_organ_damage=False,
-    has_severe_familial_dyslipidemia=False,
-    ldl_level=0.0,
-    has_systolic_bp_over_180=False,
-    has_tg_over_4_5=False,
-    age=0,
-    score2_percent=0.0
-):
-    # Экстремальный риск
-    if has_multiple_cvd_events and ldl_level > 1.4:
-        return "Экстремальный риск", "<1,0 ммоль/л"
+# routing_tool.py
 
-    # Очень высокий риск
-    if any([
-        has_acs,
-        has_atherosclerosis,
-        has_tia_stroke,
-        has_zpa_or_aneurysm,
-        (has_diabetes and (has_organ_damage or diabetes_duration_years >= 20)),
-        has_severe_familial_dyslipidemia,
-        (ldl_level >= 5.0)
-    ]):
-        return "Очень высокий риск", "<1,4 ммоль/л"
+"""
+Инструмент маршрутизации пациента на основе ФКР 2023 по сердечно-сосудистому риску.
+"""
 
-    # Высокий риск
-    if any([
-        has_diabetes and not has_organ_damage and diabetes_duration_years < 20,
-        has_systolic_bp_over_180,
-        has_tg_over_4_5,
-        (ldl_level >= 4.9),
-        (age < 50 and score2_percent > 7.5),
-        (50 <= age < 70 and score2_percent > 10),
-        (age >= 70 and score2_percent > 15)
-    ]):
-        return "Высокий риск", "<1,8 ммоль/л"
+from typing import Optional
 
-    # Умеренный риск
-    if any([
-        (age < 50 and 2.5 <= score2_percent <= 7.5),
-        (50 <= age < 70 and 5 <= score2_percent <= 10),
-        (age >= 70 and 7.5 <= score2_percent <= 15)
-    ]):
-        return "Умеренный риск", "<2,6 ммоль/л"
 
-    # Низкий риск
-    return "Низкий риск", "<3,0 ммоль/л"
+class RiskLevel:
+    EXTREME = "Экстремальный"
+    VERY_HIGH = "Очень высокий"
+    HIGH = "Высокий"
+    MODERATE = "Умеренный"
+    LOW = "Низкий"
+    UNKNOWN = "Недостаточно данных"
 
-# Пример вызова
-risk_category, target_ldl = classify_cvd_risk(
-    has_acs=True,
-    ldl_level=3.2
-)
 
-print(f"Категория риска: {risk_category}, Целевой ХС ЛПНП: {target_ldl}")
+ROUTES = {
+    RiskLevel.EXTREME: "Ведение в специализированном центре / федеральном центре / стационаре. Срочная маршрутизация.",
+    RiskLevel.VERY_HIGH: "Направление к кардиологу / эндокринологу. Возможен дневной стационар или ЦАОП.",
+    RiskLevel.HIGH: "Консультация профильного специалиста (амбулаторно). Ведение в КДЦ / межрайонном центре.",
+    RiskLevel.MODERATE: "Ведение врачом общей практики / терапевтом. Наблюдение на уровне ПМСП.",
+    RiskLevel.LOW: "Профилактическое наблюдение. Самоконтроль, контроль в ОВП / диспансеризация.",
+    RiskLevel.UNKNOWN: "Требуется дополнительное обследование и повторная стратификация риска."
+}
+
+
+def classify_risk_and_route(
+    has_multiple_events_in_2_years: bool = False,
+    has_established_cvd: bool = False,
+    has_severe_ckd: bool = False,
+    has_diabetes_with_damage: bool = False,
+    has_target_organ_damage: bool = False,
+    has_early_onset_fh: bool = False,
+    score2_percent: Optional[float] = None,
+    age: Optional[int] = None
+) -> dict:
+    """
+    Классификация сердечно-сосудистого риска и определение маршрута ведения пациента.
+    """
+
+    # Определение риска
+    if has_multiple_events_in_2_years:
+        risk = RiskLevel.EXTREME
+    elif (
+        has_established_cvd
+        or has_severe_ckd
+        or has_diabetes_with_damage
+        or has_target_organ_damage
+        or has_early_onset_fh
+    ):
+        risk = RiskLevel.VERY_HIGH
+    elif score2_percent is not None:
+        if score2_percent >= 10:
+            risk = RiskLevel.VERY_HIGH
+        elif score2_percent >= 5:
+            risk = RiskLevel.HIGH
+        elif age is not None:
+            if (age < 50 and score2_percent < 2.5) or \
+               (50 <= age < 69 and score2_percent < 5) or \
+               (age >= 70 and score2_percent < 7.5):
+                risk = RiskLevel.LOW
+            else:
+                risk = RiskLevel.MODERATE
+        else:
+            risk = RiskLevel.MODERATE
+    else:
+        risk = RiskLevel.UNKNOWN
+
+    route = ROUTES[risk]
+    return {
+        "Категория риска": risk,
+        "Рекомендованный маршрут": route
+    }
