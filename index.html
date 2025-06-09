@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Оценка пациента для Инклисирана</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 700px; margin: auto; }
     label, select, input { display: block; margin-top: 10px; width: 100%; }
     .result { margin-top: 20px; padding: 15px; border-radius: 5px; }
     .match { background-color: #e0ffe0; border: 1px solid #4CAF50; }
     .no-match { background-color: #ffe0e0; border: 1px solid #f44336; }
+    table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+    td, th { border: 1px solid #ccc; padding: 5px; text-align: center; }
   </style>
 </head>
 <body>
@@ -21,7 +23,15 @@
   <label>ЛПНП (ммоль/л):</label>
   <input type="number" id="ldl" step="0.1" />
 
-  <label>Принимает статин в максимально переносимой дозе:</label>
+  <label>Категория риска:</label>
+  <select id="risk">
+    <option value="низкий">Низкий</option>
+    <option value="умеренный">Умеренный</option>
+    <option value="высокий">Высокий</option>
+    <option value="очень высокий">Очень высокий</option>
+  </select>
+
+  <label>Принимает статин в максимальной дозе:</label>
   <select id="statin">
     <option value="нет">Нет</option>
     <option value="да">Да</option>
@@ -33,61 +43,75 @@
     <option value="да">Да</option>
   </select>
 
-  <label>Факторы риска (выберите все, что есть):</label>
-  <label><input type="checkbox" class="risk" value="инфаркт"> Инфаркт миокарда</label>
-  <label><input type="checkbox" class="risk" value="инсульт"> Инсульт</label>
-  <label><input type="checkbox" class="risk" value="периферический атеросклероз"> Периферический атеросклероз</label>
-  <label><input type="checkbox" class="risk" value="сд"> Сахарный диабет</label>
-  <label><input type="checkbox" class="risk" value="хбп"> Хроническая болезнь почек</label>
-  <label><input type="checkbox" class="risk" value="гипертония"> Артериальная гипертензия</label>
-
   <button onclick="evaluate()">Оценить пациента</button>
 
   <div id="result" class="result"></div>
 
+  <h2>Сохранённые пациенты</h2>
+  <table id="table">
+    <thead>
+      <tr><th>ФИО</th><th>Риск</th><th>ЛПНП</th><th>Показан?</th></tr>
+    </thead>
+    <tbody id="saved"></tbody>
+  </table>
+
   <script>
-    function getRiskLevel(factors) {
-      const hasExtreme = factors.includes('инфаркт') || factors.includes('инсульт') || factors.includes('периферический атеросклероз');
-      const hasVeryHigh = factors.includes('сд') || factors.includes('хбп');
-      const hasHigh = factors.includes('гипертония');
-
-      if (hasExtreme && (hasVeryHigh || factors.length > 1)) return 'экстремальный';
-      if (hasExtreme) return 'очень высокий';
-      if (hasVeryHigh) return 'высокий';
-      if (hasHigh) return 'умеренный';
-      return 'низкий';
-    }
-
     function getTargetLDL(risk) {
       switch (risk) {
-        case 'экстремальный': return 1.0;
         case 'очень высокий': return 1.4;
         case 'высокий': return 1.8;
-        case 'умеренный': return 2.6;
-        default: return 3.0;
+        default: return null;
       }
     }
 
     function evaluate() {
       const fio = document.getElementById("fio").value;
       const ldl = parseFloat(document.getElementById("ldl").value);
+      const risk = document.getElementById("risk").value;
       const statin = document.getElementById("statin").value;
       const ezetimibe = document.getElementById("ezetimibe").value;
-      const risks = Array.from(document.querySelectorAll(".risk:checked")).map(r => r.value);
 
-      const riskLevel = getRiskLevel(risks);
-      const target = getTargetLDL(riskLevel);
-      const eligible = (ldl > target && statin === "да" && ezetimibe === "да");
+      const targetLDL = getTargetLDL(risk);
+      let eligible = false;
+      let explanation = "";
+
+      if (targetLDL === null) {
+        explanation = "Пациент с низким или умеренным риском — инклисиран не показан.";
+      } else if (statin === "да" && ezetimibe === "да" && ldl > targetLDL) {
+        eligible = true;
+        explanation = "Пациент соответствует критериям: риск высокий или выше, терапия оптимальна, ЛПНП выше целевого.";
+      } else {
+        explanation = "Пациент не соответствует всем условиям: риск/терапия/уровень ЛПНП.";
+      }
 
       document.getElementById("result").className = `result ${eligible ? 'match' : 'no-match'}`;
       document.getElementById("result").innerHTML = `
         <h3>${fio}</h3>
-        <p>Уровень риска: <strong>${riskLevel}</strong></p>
-        <p>Целевой ЛПНП: <strong>< ${target} ммоль/л</strong></p>
-        <p>Фактический ЛПНП: <strong>${ldl} ммоль/л</strong></p>
-        <p><strong>${eligible ? 'Пациент подходит' : 'Пациент не подходит'}</strong> для назначения инклисирана</p>
+        <p>Категория риска: <strong>${risk}</strong></p>
+        <p>ЛПНП: <strong>${ldl} ммоль/л</strong> / Целевой: ${targetLDL ?? "не определён"}</p>
+        <p>${explanation}</p>
+        <p><strong>${eligible ? "Инклисиран показан" : "Инклисиран не показан"}</strong></p>
       `;
+
+      savePatient({ fio, risk, ldl, eligible });
     }
+
+    function savePatient(patient) {
+      const list = JSON.parse(localStorage.getItem("patients") || "[]");
+      list.push(patient);
+      localStorage.setItem("patients", JSON.stringify(list));
+      renderSaved();
+    }
+
+    function renderSaved() {
+      const list = JSON.parse(localStorage.getItem("patients") || "[]");
+      const tbody = document.getElementById("saved");
+      tbody.innerHTML = list.map(p =>
+        `<tr><td>${p.fio}</td><td>${p.risk}</td><td>${p.ldl}</td><td>${p.eligible ? "✅" : "❌"}</td></tr>`
+      ).join("");
+    }
+
+    renderSaved();
   </script>
 </body>
 </html>
