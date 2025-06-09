@@ -12,6 +12,7 @@
     .no-match { background-color: #ffe0e0; border: 1px solid #f44336; }
     table { width: 100%; margin-top: 20px; border-collapse: collapse; }
     td, th { border: 1px solid #ccc; padding: 5px; text-align: center; }
+    button { margin-top: 15px; padding: 10px; }
   </style>
 </head>
 <body>
@@ -55,21 +56,26 @@
     <tbody id="saved"></tbody>
   </table>
 
+  <button onclick="clearPatients()">🗑 Очистить список</button>
+
   <script>
     function getTargetLDL(risk) {
-      switch (risk) {
-        case 'очень высокий': return 1.4;
-        case 'высокий': return 1.8;
-        default: return null;
-      }
+      if (risk === "очень высокий") return 1.4;
+      if (risk === "высокий") return 1.8;
+      return null;
     }
 
     function evaluate() {
-      const fio = document.getElementById("fio").value;
+      const fio = document.getElementById("fio").value.trim();
       const ldl = parseFloat(document.getElementById("ldl").value);
       const risk = document.getElementById("risk").value;
       const statin = document.getElementById("statin").value;
       const ezetimibe = document.getElementById("ezetimibe").value;
+
+      if (!fio || isNaN(ldl)) {
+        alert("Пожалуйста, введите ФИО и уровень ЛПНП.");
+        return;
+      }
 
       const targetLDL = getTargetLDL(risk);
       let eligible = false;
@@ -79,25 +85,25 @@
         explanation = "Пациент с низким или умеренным риском — инклисиран не показан.";
       } else if (statin === "да" && ezetimibe === "да" && ldl > targetLDL) {
         eligible = true;
-        explanation = "Пациент соответствует критериям: риск высокий или выше, терапия оптимальна, ЛПНП выше целевого.";
+        explanation = "Пациент соответствует критериям: высокий риск, оптимальная терапия, ЛПНП выше целевого.";
       } else {
-        explanation = "Пациент не соответствует всем условиям: риск/терапия/уровень ЛПНП.";
+        explanation = "Пациент не соответствует критериям: недостаёт риск/терапия/ЛПНП.";
       }
 
       document.getElementById("result").className = `result ${eligible ? 'match' : 'no-match'}`;
       document.getElementById("result").innerHTML = `
         <h3>${fio}</h3>
         <p>Категория риска: <strong>${risk}</strong></p>
-        <p>ЛПНП: <strong>${ldl} ммоль/л</strong> / Целевой: ${targetLDL ?? "не определён"}</p>
+        <p>ЛПНП: <strong>${ldl} ммоль/л</strong> (Цель: ${targetLDL ?? "не указана"})</p>
         <p>${explanation}</p>
-        <p><strong>${eligible ? "Инклисиран показан" : "Инклисиран не показан"}</strong></p>
+        <p><strong>${eligible ? "✅ Инклисиран показан" : "❌ Инклисиран не показан"}</strong></p>
       `;
 
       savePatient({ fio, risk, ldl, eligible });
     }
 
     function savePatient(patient) {
-      const list = JSON.parse(localStorage.getItem("patients") || "[]");
+      let list = JSON.parse(localStorage.getItem("patients") || "[]");
       list.push(patient);
       localStorage.setItem("patients", JSON.stringify(list));
       renderSaved();
@@ -111,6 +117,14 @@
       ).join("");
     }
 
+    function clearPatients() {
+      if (confirm("Удалить всех пациентов из списка?")) {
+        localStorage.removeItem("patients");
+        renderSaved();
+      }
+    }
+
+    // загружаем сохранённые пациенты при открытии страницы
     renderSaved();
   </script>
 </body>
