@@ -2,112 +2,119 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Проверка на назначение Инклисирана</title>
+  <title>Критерии назначения Инклисирана</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; max-width: 700px; margin: auto; }
-    input, select { margin-bottom: 10px; width: 100%; padding: 8px; }
-    button { padding: 8px 16px; margin-top: 10px; }
-    .patient { border: 1px solid #ccc; padding: 10px; margin-top: 10px; border-radius: 5px; }
-    .yes { color: green; font-weight: bold; }
-    .no { color: red; font-weight: bold; }
-    .delete-btn { background-color: #f44336; color: white; border: none; padding: 5px 10px; cursor: pointer; float: right; }
+    body { font-family: Arial, sans-serif; padding: 20px; background-color: #f8f9fa; }
+    label { display: block; margin-top: 10px; }
+    input, select, button { margin-top: 5px; padding: 5px; width: 100%; max-width: 300px; }
+    .result { margin-top: 20px; padding: 15px; border-radius: 5px; }
+    .eligible { background-color: #d4edda; color: #155724; }
+    .not-eligible { background-color: #f8d7da; color: #721c24; }
+    .patient-card { border: 1px solid #ccc; padding: 10px; margin-top: 10px; border-radius: 5px; background: white; }
+    .patient-card button { margin-top: 5px; background-color: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; }
   </style>
 </head>
 <body>
   <h2>Форма оценки пациента для назначения Инклисирана</h2>
-  <input type="text" id="fio" placeholder="ФИО пациента">
-  <input type="text" id="city" placeholder="Город">
-  <input type="date" id="date">
-  <label>ЛПНП (ммоль/л):</label>
-  <input type="number" id="ldl" step="0.1">
-  <label>Препарат статина:</label>
-  <select id="statin">
-    <option value="">Выберите</option>
-    <option value="atorvastatin">Аторвастатин</option>
-    <option value="rosuvastatin">Розувастатин</option>
-    <option value="simvastatin">Симвастатин</option>
-  </select>
-  <label>Доза статина (мг):</label>
-  <input type="number" id="dose">
-  <label>ССС заболевание (перенес ИМ, инсульт, ХБС, ПА):</label>
-  <select id="ccc">
-    <option value="нет">Нет</option>
-    <option value="да">Да</option>
-  </select>
-  <button onclick="evaluatePatient()">Оценить и сохранить</button>
 
-  <h3>Сохранённые пациенты:</h3>
-  <div id="patientList"></div>
+  <label>ФИО пациента: <input id="fio" type="text"></label>
+  <label>Город: <input id="city" type="text"></label>
+  <label>Дата: <input id="date" type="date"></label>
+
+  <label>ЛПНП (ммоль/л): <input id="ldl" type="number" step="0.1"></label>
+
+  <label>Применяет максимальную дозу статинов:</label>
+  <select id="statin">
+    <option value="atorvastatin">Аторвастатин ≥ 40 мг</option>
+    <option value="rosuvastatin">Розувастатин ≥ 20 мг</option>
+    <option value="simvastatin">Симвастатин ≥ 40 мг</option>
+    <option value="no">Нет</option>
+  </select>
+
+  <label>Принимает эзетемиб:</label>
+  <select id="ezetimibe">
+    <option value="yes">Да</option>
+    <option value="no">Нет</option>
+  </select>
+
+  <label>Факт ИБС / ИМ / инсульта / ПА:</label>
+  <select id="cvd">
+    <option value="yes">Да</option>
+    <option value="no">Нет</option>
+  </select>
+
+  <button onclick="checkEligibility()">Оценить</button>
+
+  <div id="result"></div>
+  <button onclick="savePatient()">Сохранить пациента</button>
+
+  <h3>Список пациентов</h3>
+  <div id="patients"></div>
 
   <script>
-    function getMaxDose(statin) {
-      const doses = {
-        'atorvastatin': 80,
-        'rosuvastatin': 40,
-        'simvastatin': 40
-      };
-      return doses[statin] || 0;
+    function checkEligibility() {
+      const ldl = parseFloat(document.getElementById('ldl').value);
+      const statin = document.getElementById('statin').value;
+      const ezetimibe = document.getElementById('ezetimibe').value;
+      const cvd = document.getElementById('cvd').value;
+      let eligible = false;
+
+      const statinOk = statin !== 'no';
+      const ezOk = ezetimibe === 'yes';
+      const hasCVD = cvd === 'yes';
+
+      if (hasCVD && statinOk && ezOk && ldl >= 1.4) eligible = true;
+      else if (!hasCVD && statinOk && ezOk && ldl >= 2.6) eligible = true;
+
+      const resultDiv = document.getElementById('result');
+      resultDiv.className = 'result ' + (eligible ? 'eligible' : 'not-eligible');
+      resultDiv.innerText = eligible ? 'Пациент подходит под критерии назначения Инклисирана' : 'Пациент НЕ подходит под критерии назначения Инклисирана';
+      return eligible;
     }
 
-    function evaluatePatient() {
+    function savePatient() {
       const fio = document.getElementById('fio').value;
       const city = document.getElementById('city').value;
       const date = document.getElementById('date').value;
-      const ldl = parseFloat(document.getElementById('ldl').value);
+      const ldl = document.getElementById('ldl').value;
       const statin = document.getElementById('statin').value;
-      const dose = parseInt(document.getElementById('dose').value);
-      const ccc = document.getElementById('ccc').value;
+      const ezetimibe = document.getElementById('ezetimibe').value;
+      const cvd = document.getElementById('cvd').value;
+      const eligible = checkEligibility();
 
-      if (!fio || !city || !date || isNaN(ldl) || !statin || isNaN(dose)) {
-        alert('Пожалуйста, заполните все поля.');
-        return;
-      }
-
-      const maxDose = getMaxDose(statin);
-      const onMaxDose = dose >= maxDose;
-      const needsInclisiran = ldl >= 4.9 && onMaxDose && ccc === 'да';
-
-      const patient = {
-        fio, city, date, ldl, statin, dose, ccc,
-        result: needsInclisiran ? 'Подходит под инклисиран' : 'Не подходит под инклисиран'
-      };
-
-      const saved = JSON.parse(localStorage.getItem('patients') || '[]');
-      saved.push(patient);
-      localStorage.setItem('patients', JSON.stringify(saved));
-      renderPatients();
-    }
-
-    function deletePatient(index) {
-      const saved = JSON.parse(localStorage.getItem('patients') || '[]');
-      saved.splice(index, 1);
-      localStorage.setItem('patients', JSON.stringify(saved));
+      const patient = { fio, city, date, ldl, statin, ezetimibe, cvd, eligible };
+      let patients = JSON.parse(localStorage.getItem('patients') || '[]');
+      patients.push(patient);
+      localStorage.setItem('patients', JSON.stringify(patients));
       renderPatients();
     }
 
     function renderPatients() {
-      const container = document.getElementById('patientList');
-      const saved = JSON.parse(localStorage.getItem('patients') || '[]');
+      const container = document.getElementById('patients');
       container.innerHTML = '';
-      saved.forEach((p, i) => {
+      const patients = JSON.parse(localStorage.getItem('patients') || '[]');
+      patients.forEach((p, i) => {
         const div = document.createElement('div');
-        div.className = 'patient';
-        div.innerHTML = `
-          <button class="delete-btn" onclick="deletePatient(${i})">Удалить</button>
-          <strong>${p.fio}</strong> (${p.city})<br>
-          Дата: ${p.date}<br>
+        div.className = 'patient-card';
+        div.innerHTML = `<strong>${p.fio}</strong> (${p.city}, ${p.date})<br>
           ЛПНП: ${p.ldl} ммоль/л<br>
-          Статин: ${p.statin}, ${p.dose} мг<br>
-          ССС заболевание: ${p.ccc}<br>
-          <div class="${p.result.includes('Подходит') ? 'yes' : 'no'}">${p.result}</div>
-        `;
+          Статин: ${p.statin}<br>
+          Эзетимиб: ${p.ezetimibe}<br>
+          ССЗ: ${p.cvd}<br>
+          <strong>${p.eligible ? 'Подходит' : 'Не подходит'} под инклисиран</strong><br>
+          <button onclick="deletePatient(${i})">Удалить</button>`;
         container.appendChild(div);
       });
     }
 
-    window.onload = renderPatients;
+    function deletePatient(index) {
+      let patients = JSON.parse(localStorage.getItem('patients') || '[]');
+      patients.splice(index, 1);
+      localStorage.setItem('patients', JSON.stringify(patients));
+      renderPatients();
+    }
+
+    renderPatients();
   </script>
 </body>
 </html>
-
-
